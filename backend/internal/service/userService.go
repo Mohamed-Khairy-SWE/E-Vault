@@ -9,6 +9,7 @@ import (
 	"E-Vault/internal/config"
 	"E-Vault/internal/domain"
 	"E-Vault/internal/platform/crypto"
+	"E-Vault/internal/platform/email"
 	"E-Vault/internal/store"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -19,6 +20,7 @@ type UserService interface {
 	Create(ctx context.Context, email, password string) (*domain.User, string, string, error)
 	Login(ctx context.Context, email, password string) (*domain.User, string, string, error)
 	ChangePassword(ctx context.Context, userID bson.ObjectID, oldPassword, newPassword string) (string, string, error)
+	SendVerificationEmail(ctx context.Context, userID bson.ObjectID) error
 	// Additional methods like Logout, VerifyEmail, etc., would be defined here.
 }
 
@@ -28,15 +30,23 @@ type userService struct {
 	cfg       config.Config
 	tokenSvc  crypto.TokenGenerator
 	passSvc   crypto.PasswordManager
+	emailSvc  email.EmailService
 }
 
 // NewUserService creates a new instance of the user service.
-func NewUserService(userStore store.UserStore, cfg config.Config, ts crypto.TokenGenerator, ps crypto.PasswordManager) UserService {
+func NewUserService(
+	userStore store.UserStore,
+	cfg config.Config,
+	ts crypto.TokenGenerator,
+	ps crypto.PasswordManager,
+	es email.EmailService,
+) UserService {
 	return &userService{
 		userStore: userStore,
 		cfg:       cfg,
 		tokenSvc:  ts,
 		passSvc:   ps,
+		emailSvc:  es,
 	}
 }
 
@@ -77,10 +87,40 @@ func (s *userService) Create(ctx context.Context, email, password string) (*doma
 		return nil, "", "", fmt.Errorf("failed to create token pair: %w", err)
 	}
 
-	// Here I would trigger the email verification flow if enabled.
-	// if s.cfg.Email.VerificationEnabled { ... }
+	// If email verification is enabled, send the verification email
+	if s.cfg.Email.VerificationEnabled {
+		go func() {
+			//Sending email can be slow, so we do it in a background goroutine
+			// to not block the user's registration response
+			// We'll generate a dedicated, short-lived token for this
+			// This logic will be fully implemented when we add token parsing
+			err := s.emailSvc.SendVerificationEmail(user, "placeholder-email-token")
+			if err != nil {
+				fmt.Printf("Failed to send verification email to %s: %v\n", user.Email, err)
+			}
+		}()
+	}
 
 	return user, accessToken, refreshToken, nil
+}
+
+// SendVerificationEmail handles the logic for resending a verification email.
+func (s *userService) SendVerificationEmail(ctx context.Context, userID bson.ObjectID) error {
+	if !s.cfg.Email.VerificationEnabled {
+		return errors.New("email verification is not enabled")
+	}
+
+	user, err := s.userStore.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	if user.EmailVerified != nil && *user.EmailVerified {
+		return errors.New("email is already verified")
+	}
+
+	// This logic will be expanded when we can generate and store the email-specific token.
+	return s.emailSvc.SendVerificationEmail(user, "placeholder-email-token")
 }
 
 // Login handles the business logic for user authentication.

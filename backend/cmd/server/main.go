@@ -13,6 +13,7 @@ import (
 	"E-Vault/internal/api"
 	"E-Vault/internal/config"
 	"E-Vault/internal/platform/crypto"
+	"E-Vault/internal/platform/email"
 	"E-Vault/internal/service"
 	"E-Vault/internal/store/mongo"
 )
@@ -61,13 +62,14 @@ func run() error {
 		cfg.Auth.AccessKeyTTL,
 		cfg.Auth.RefreshKeyTTL,
 	)
-	logger.Println("Crypto services initialized")
+	emailService := email.NewSMTPEmailService(cfg.Email, cfg.HTTP.URL)
+	logger.Println("Platform services initialized")
 
 	// Initialize the MongoDB user store.
 	userStore := mongo.NewUserStore(dbClient.Database("drive_clone"))
 
 	// Initialize the user service, injecting all its dependencies.
-	userService := service.NewUserService(userStore, *cfg, tokenGenerator, passwordManager)
+	userService := service.NewUserService(userStore, *cfg, tokenGenerator, passwordManager, emailService)
 
 	// Initialize the HTTP handlers.
 	userHandler := api.NewUserHandler(userService)
