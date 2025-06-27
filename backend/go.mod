@@ -3,6 +3,7 @@ module E-Vault
 go 1.24.2
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect

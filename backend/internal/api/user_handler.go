@@ -55,8 +55,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uuid := r.Header.Get("X-Request-ID") // Example of getting a unique ID per request
-	user, accessToken, refreshToken, err := h.service.Create(r.Context(), req.Email, req.Password, uuid)
+	user, accessToken, refreshToken, err := h.service.Create(r.Context(), req.Email, req.Password)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, FromServiceError(err))
 		return
@@ -78,8 +77,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uuid := r.Header.Get("X-Request-ID")
-	user, accessToken, refreshToken, err := h.service.Login(r.Context(), req.Email, req.Password, uuid)
+	user, accessToken, refreshToken, err := h.service.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, FromServiceError(err))
 		return
