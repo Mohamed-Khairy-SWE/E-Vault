@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"io"
 
 	"E-Vault/internal/domain"
 
@@ -32,4 +33,18 @@ type UserStore interface {
 	// FindByID retrieves a user by their unique ID. It should return
 	// store.ErrNotFound if no user is found
 	FindByID(ctx context.Context, id bson.ObjectID) (*domain.User, error)
+}
+
+// Folder defines the interface for folder data operations
+type FolderStore interface {
+	Create(ctx context.Context, folder *domain.Folder) error
+	GetByID(ctx context.Context, ownerID, folderID bson.ObjectID) (*domain.Folder, error)
+}
+
+// FileStore defices the interface for file data (GridFS) operations
+type FileStore interface {
+	Upload(ctx context.Context, name string, metadata domain.FileMetadata, source io.Reader) (*domain.File, error)
+	FindByID(ctx context.Context, ownerID, fileID bson.ObjectID) (*domain.File, error)
+	Download(ctx context.Context, id bson.ObjectID) (io.ReadCloser, *domain.File, error)
+	Delete(ctx context.Context, id bson.ObjectID) error
 }
