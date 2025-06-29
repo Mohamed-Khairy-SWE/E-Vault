@@ -9,6 +9,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const folderCollection = "folders"
@@ -52,4 +53,37 @@ func (s *FolderStore) GetByID(ctx context.Context, ownerID, folderID bson.Object
 		return nil, err
 	}
 	return &folder, nil
+}
+
+// List retrieves a list of folders matching the given criteria.
+func (s *FolderStore) List(ctx context.Context, ownerID bson.ObjectID, parentID string, opts store.ListOptions) ([]*domain.Folder, error) {
+	// Build the query filter.
+	filter := bson.M{
+		"owner":   ownerID,
+		"parent":  parentID,
+		"trashed": bson.M{"$ne": true}, // Exclude trashed folders
+	}
+
+	// Set find options for sorting and limiting.
+	findOptions := options.Find()
+	if opts.SortBy != "" {
+		findOptions.SetSort(bson.D{{Key: opts.SortBy, Value: opts.SortOrder}})
+	}
+	if opts.Limit > 0 {
+		findOptions.SetLimit(opts.Limit)
+	}
+
+	cursor, err := s.db.Collection(folderCollection).Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	// Decode the results into a slice of Folder pointers.
+	var folders []*domain.Folder
+	if err := cursor.All(ctx, &folders); err != nil {
+		return nil, err
+	}
+
+	return folders, nil
 }

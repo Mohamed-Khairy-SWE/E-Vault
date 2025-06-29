@@ -73,6 +73,41 @@ func (s *FileStore) FindByID(ctx context.Context, ownerID, fileID bson.ObjectID)
 	return &file, nil
 }
 
+// List retrieves a list of files matching the given criteria.
+func (s *FileStore) List(ctx context.Context, ownerID bson.ObjectID, parentID string, opts store.ListOptions) ([]*domain.File, error) {
+	// Build the query filter for files.
+	filter := bson.M{
+		"metadata.owner":   ownerID,
+		"metadata.parent":  parentID,
+		"metadata.trashed": bson.M{"$ne": true}, // Exclude trashed files
+	}
+
+	findOptions := options.Find()
+	if opts.SortBy != "" {
+		findOptions.SetSort(bson.D{{Key: opts.SortBy, Value: opts.SortOrder}})
+	}
+
+	if opts.SortBy == "filename" {
+		findOptions.SetCollation(&options.Collation{Locale: "en", Strength: 2})
+	}
+	if opts.Limit > 0 {
+		findOptions.SetLimit(opts.Limit)
+	}
+
+	cursor, err := s.bucket.GetFilesCollection().Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var files []*domain.File
+	if err := cursor.All(ctx, &files); err != nil {
+		return nil, err
+	}
+
+	return files, nil
+}
+
 // Download opens a stream to download a file's content from GridFS.
 // It also returns the file's metadata.
 func (s *FileStore) Download(ctx context.Context, id bson.ObjectID) (io.ReadCloser, *domain.File, error) {

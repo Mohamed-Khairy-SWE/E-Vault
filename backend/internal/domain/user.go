@@ -36,7 +36,7 @@ type User struct {
 	TempTokens []AuthToken `bson:"tempTokens" json:"-"`
 
 	// PrivatKey is the encrypted key used for file encryption, stored as a hex string
-	PrivatKey string `bson:"privateKey,omitempty" json:"-"`
+	PrivateKey string `bson:"privateKey,omitempty" json:"-"`
 
 	// PublicKey is the IV used for the private key encryption, stored as a hex string
 	PublicKey string `bson:"publicKey,omitempty" json:"-"`

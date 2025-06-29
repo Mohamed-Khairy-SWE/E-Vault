@@ -35,10 +35,19 @@ type UserStore interface {
 	FindByID(ctx context.Context, id bson.ObjectID) (*domain.User, error)
 }
 
+// ListOptions contains options for listing items, such as sorting and pagination.
+type ListOptions struct {
+	SortBy    string
+	SortOrder int // 1 for ascending, -1 for descending
+	Limit     int64
+}
+
 // Folder defines the interface for folder data operations
 type FolderStore interface {
 	Create(ctx context.Context, folder *domain.Folder) error
 	GetByID(ctx context.Context, ownerID, folderID bson.ObjectID) (*domain.Folder, error)
+	// List retrieves a list of folders filtered by owner and parent.
+	List(ctx context.Context, ownerID bson.ObjectID, parentID string, opts ListOptions) ([]*domain.Folder, error)
 }
 
 // FileStore defices the interface for file data (GridFS) operations
@@ -47,4 +56,6 @@ type FileStore interface {
 	FindByID(ctx context.Context, ownerID, fileID bson.ObjectID) (*domain.File, error)
 	Download(ctx context.Context, id bson.ObjectID) (io.ReadCloser, *domain.File, error)
 	Delete(ctx context.Context, id bson.ObjectID) error
+	// List retrieves a list of files filtered by owner and parent.
+	List(ctx context.Context, ownerID bson.ObjectID, parentID string, opts ListOptions) ([]*domain.File, error)
 }

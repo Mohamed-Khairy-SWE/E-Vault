@@ -54,7 +54,14 @@ func run() error {
 	// =========================================================================
 	// Initialize Dependencies
 
-	// Initialize the platform services (crypto).
+	// Initialize Stores
+	db := dbClient.Database("drive_clone")
+	userStore := mongo.NewUserStore(db)
+	folderStore := mongo.NewFolderStore(db)
+	fileStore := mongo.NewFileStore(db)
+	logger.Println("Data stores initialized")
+
+	// Initialize the platform services
 	passwordManager := crypto.NewBcryptManager(0) // Use default cost
 	tokenGenerator := crypto.NewJWTGenerator(
 		cfg.Auth.AccessKey,
@@ -63,23 +70,29 @@ func run() error {
 		cfg.Auth.RefreshKeyTTL,
 	)
 	emailService := email.NewSMTPEmailService(cfg.Email, cfg.HTTP.URL)
+	keyManager := crypto.NewKeyManager(cfg.MasterEncryptionKey)
 	logger.Println("Platform services initialized")
 
-	// Initialize the MongoDB user store.
-	userStore := mongo.NewUserStore(dbClient.Database("drive_clone"))
+	// Initialize Application Services
+	folderService := service.NewFolderService(folderStore, fileStore)
+	fileService := service.NewFileService(fileStore, folderStore)
+	userService := service.NewUserService(userStore, *cfg, tokenGenerator, passwordManager, emailService, keyManager)
+	logger.Println("Application services initialized")
 
-	// Initialize the user service, injecting all its dependencies.
-	userService := service.NewUserService(userStore, *cfg, tokenGenerator, passwordManager, emailService)
-
-	// Initialize the HTTP handlers.
+	// Initialize API Handlers
 	userHandler := api.NewUserHandler(userService)
-
-	logger.Println("Dependencies initialized")
+	folderHandler := api.NewFolderHandler(folderService)
+	fileHandler := api.NewFileHandler(fileService)
+	authMiddleware := api.NewAuthMiddleware(tokenGenerator, userStore)
+	logger.Println("API handlers and middleware initialized")
 
 	// =========================================================================
 	// HTTP Server Setup
 	mux := http.NewServeMux()
-	api.RegisterRoutes(mux, userHandler, logger)
+
+	// Register all application routes by passing in all the handlers and middleware
+	api.RegisterRoutes(mux, userHandler, folderHandler, fileHandler, authMiddleware, logger)
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
@@ -88,6 +101,7 @@ func run() error {
 		fmt.Fprintln(w, "API is running.")
 	})
 
+	// Wrap the mux with our custom router to add PATCH support.
 	handler := api.NewPatchRouter(mux)
 
 	server := &http.Server{
